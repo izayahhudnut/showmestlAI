@@ -10,8 +10,6 @@ import json
 # Load environment variables
 load_dotenv()
 
-# Debugging to verify that the credentials are loaded
-
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -64,8 +62,10 @@ def search_places(query, top_k=10):
             similarity = 1 - distance if distance is not None else None
             results_list.append({
                 "id": doc.id,
-                "Title": data.get("Title", "N/A"),
-                "similarity": round(similarity, 3) if similarity is not None else None
+               "name": data.get("Title", "Unknown Place"),
+               "description": data.get("description", "No description available"),
+               "address": data.get("address", "N/A"),  # ✅ Added address retrieval
+               "similarity": round(similarity, 3) if similarity is not None else None
             })
             
     except Exception as e:
@@ -75,9 +75,9 @@ def search_places(query, top_k=10):
 
 # Example usage (only runs when script is executed directly)
 if __name__ == "__main__":
-    query = "a cozy spot serving rustic meditareren dishes"
+    query = "a cozy spot serving rustic Mediterranean dishes"
     results = search_places(query)
     
     print("\n--- Search Results ---")
     for i, place in enumerate(results):
-        print(f"{i + 1}. Title: {place['Title']}, ID: {place['id']}, Similarity: {place['similarity']}")
+        print(f"{i + 1}. Title: {place['name']}, Description: {place['description']}, ID: {place['id']}, Similarity: {place['similarity']}")
