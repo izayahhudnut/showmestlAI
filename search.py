@@ -3,23 +3,36 @@ from openai import OpenAI
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_vector_query import DistanceMeasure
 from google.cloud.firestore_v1.vector import Vector
+from google.oauth2 import service_account
+import os
+import json
 
-# Load environment variables and initialize clients
+# Load environment variables
 load_dotenv()
-client = OpenAI()
-db = firestore.Client()
+
+# Debugging to verify that the credentials are loaded
+
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Load Google credentials from environment variable
+if os.getenv("GOOGLE_CREDENTIALS"):
+    try:
+        credentials_info = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
+        credentials = service_account.Credentials.from_service_account_info(credentials_info)
+        db = firestore.Client(credentials=credentials, project=credentials_info["project_id"])
+    except Exception as e:
+        print(f"Error loading Firestore credentials: {e}")
+        db = None
+else:
+    print("GOOGLE_CREDENTIALS not found in environment. Using default credentials.")
+    db = firestore.Client()
 
 def search_places(query, top_k=10):
-    """
-    Search for places based on semantic similarity to the query text in Firestore.
-    
-    Args:
-        query (str): The search query.
-        top_k (int): Maximum number of results to return.
+    if not db:
+        print("Firestore client not initialized.")
+        return []
         
-    Returns:
-        list: List of dicts containing the Title, document ID, and similarity score.
-    """
     results_list = []
     try:
         # Compute the embedding for the query using OpenAI
