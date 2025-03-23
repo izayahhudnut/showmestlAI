@@ -5,7 +5,6 @@ from google.cloud.firestore_v1.base_vector_query import DistanceMeasure
 from google.cloud.firestore_v1.vector import Vector
 from google.oauth2 import service_account
 import os
-import json
 
 # Load environment variables
 load_dotenv()
@@ -13,18 +12,24 @@ load_dotenv()
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Load Google credentials from environment variable
-if os.getenv("GOOGLE_CREDENTIALS"):
+# Determine credentials path based on environment
+if os.getenv("RENDER"):
+    credentials_path = '/etc/secrets/credentials.json'  # ✅ Path for Render
+else:
+    credentials_path = os.path.join(os.path.dirname(__file__), 'credentials.json')  # ✅ Path for local
+
+if os.path.exists(credentials_path):
     try:
-        credentials_info = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
-        credentials = service_account.Credentials.from_service_account_info(credentials_info)
-        db = firestore.Client(credentials=credentials, project=credentials_info["project_id"])
+        credentials = service_account.Credentials.from_service_account_file(credentials_path)
+        db = firestore.Client(credentials=credentials, project=credentials.project_id)
+        print(f"✅ Firestore connected successfully. Using credentials from: {credentials_path}")
     except Exception as e:
-        print(f"Error loading Firestore credentials: {e}")
+        print(f"❌ Error loading Firestore credentials from file: {e}")
         db = None
 else:
-    print("GOOGLE_CREDENTIALS not found in environment. Using default credentials.")
-    db = firestore.Client()
+    print(f"❌ 'credentials.json' file not found at path: {credentials_path}")
+    db = None
+
 
 def search_places(query, top_k=10):
     if not db:
@@ -62,16 +67,17 @@ def search_places(query, top_k=10):
             similarity = 1 - distance if distance is not None else None
             results_list.append({
                 "id": doc.id,
-               "name": data.get("Title", "Unknown Place"),
-               "description": data.get("description", "No description available"),
-               "address": data.get("address", "N/A"),  # ✅ Added address retrieval
-               "similarity": round(similarity, 3) if similarity is not None else None
+                "name": data.get("Title", "Unknown Place"),
+                "description": data.get("description", "No description available"),
+                "address": data.get("address", "N/A"),  # ✅ Added address retrieval
+                "similarity": round(similarity, 3) if similarity is not None else None
             })
             
     except Exception as e:
-        print(f"Error in search_places: {e}")
+        print(f"❌ Error in search_places: {e}")
     
     return results_list
+
 
 # Example usage (only runs when script is executed directly)
 if __name__ == "__main__":
@@ -80,4 +86,4 @@ if __name__ == "__main__":
     
     print("\n--- Search Results ---")
     for i, place in enumerate(results):
-        print(f"{i + 1}. Title: {place['name']}, Description: {place['description']}, ID: {place['id']}, Similarity: {place['similarity']}")
+        print(f"{i + 1}. Title: {place['name']}, Description: {place['description']}, Address: {place['address']}, ID: {place['id']}, Similarity: {place['similarity']}")
