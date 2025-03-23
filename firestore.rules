@@ -1,0 +1,23 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Neighborhood collection: Read-only
+    match /Neighborhood/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // Places collection: Allow read and write (for testing)
+    match /Places/{document=**} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Categories collection: Read-only
+    match /Categories/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

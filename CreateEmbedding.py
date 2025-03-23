@@ -1,48 +1,46 @@
-import os
-import psycopg2
+import json
 from dotenv import load_dotenv
+from google.cloud import firestore
+from google.cloud.firestore_v1.vector import Vector
 from openai import OpenAI
 
-# Load env variables and initialize clients
+# Load environment variables and initialize clients
 load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
 client = OpenAI()
+db = firestore.Client()
 
 def get_embeddings_for_places():
-    # Connect to database
-    conn = psycopg2.connect(DATABASE_URL)
-    cursor = conn.cursor()
-    
-    # Get all places
-    cursor.execute("SELECT id, name, description FROM places;")
-    places = cursor.fetchall()
-    
-    for place in places:
-        place_id, name, description = place
-        text = f"Name: {name}. Description: {description or ''}"
+    # Access the "Places" collection (with capital "P")
+    places_ref = db.collection("Places")
+    docs = places_ref.stream()
+
+    for doc in docs:
+        data = doc.to_dict()
+        # Use the "title" field for display if available; fallback to doc id otherwise
+        title = data.get("title", f"Document {doc.id}")
         
-        # Get embedding
-        print(f"\n--- Embedding for: {name} ---")
+        # Remove the embedding_field (if it exists) to avoid including it in the embedding input.
+        data_for_embedding = {k: v for k, v in data.items() if k != "embedding_field"}
+        # Convert the entire document data to a JSON string.
+        text_input = json.dumps(data_for_embedding, indent=2)
+        print(text_input)
+        
+        print(f"\n--- Computing embedding for: {title} ---")
         response = client.embeddings.create(
-            input=text,
+            input=text_input,
             model="text-embedding-3-small"
         )
         embedding = response.data[0].embedding
+        print(embedding)
         
-        # Convert embedding into PostgreSQL-compatible format
-        embedded_query_pg = f"[{','.join(map(str, embedding))}]"
+        # Wrap the embedding list in a Firestore Vector instance.
+        embedding_vector = Vector(embedding)
         
-        # Store embedding directly as a vector
-        cursor.execute(
-            "UPDATE places SET embeddings = %s::vector(1536) WHERE id = %s;",
-            (embedded_query_pg, place_id)
-        )
-    
-    # Commit changes and close connection
-    conn.commit()
-    cursor.close()
-    conn.close()
+        # Update the document by creating (or merging) the new embedding_field.
+        doc.reference.set({
+            "embedding_field": embedding_vector
+        }, merge=True)
+        print(f"Updated document {doc.id} with embedding_field.")
 
-# Run the function
 if __name__ == "__main__":
     get_embeddings_for_places()

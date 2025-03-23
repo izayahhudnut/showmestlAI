@@ -102,13 +102,16 @@ def generate_recommendations(user_query, top_k=15):
     
     for place in search_results:
         place_id = place['id']
-        place_name = place['name']
-        place_desc = place['description']
+        # Use 'Title' from search result (if available) instead of 'name'
+        place_name = place.get('Title', 'N/A')
+        # Use defaults for description and address if they are not provided
+        place_desc = place.get('description', 'No description provided')
+        place_addr = place.get('address', 'No address provided')
         
         places_context += f"ID: {place_id}\n"
         places_context += f"Name: {place_name}\n"
         places_context += f"Description: {place_desc}\n"
-        places_context += f"Address: {place['address']}\n"
+        places_context += f"Address: {place_addr}\n"
         places_context += f"Similarity Score: {place['similarity']}\n\n"
         
         places_mapping[place_name] = {
@@ -164,12 +167,13 @@ def generate_recommendations(user_query, top_k=15):
                 for place in search_results:
                     places.append({
                         "id": place["id"],
-                        "name": place["name"],
-                        "description": place["description"]
+                        "name": place.get("Title", "N/A"),
+                        "description": place.get("description", "No description provided")
                     })
                 rec.places = places
 
     return result
+
 
 
 @app.route('/recommend', methods=['POST'])
@@ -192,14 +196,14 @@ def recommend():
             for rec in exp.recommendations:
                 step = {
                     "step_name": rec.title,
-                    "places": [{"id": place["id"], "name": place["name"]} for place in rec.places]
+                    "places": [{"id": place.id, "name": place.name} for place in rec.places]
                 }
                 output["steps"].append(step)
     elif recommendations.recommendations:
         for rec in recommendations.recommendations:
             step = {
                 "step_name": rec.title,
-                "places": [{"id": place["id"], "name": place["name"]} for place in rec.places]
+                "places": [{"id": place.id, "name": place.name} for place in rec.places]
             }
             output["steps"].append(step)
     
@@ -207,8 +211,9 @@ def recommend():
     return jsonify(output)
 
 
+
 if __name__ == '__main__':
     # Use PORT environment variable if available, otherwise default to 5000.
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 5003))
     print(f"Starting server on port {port}")
     app.run(host="0.0.0.0", port=port, debug=True)
