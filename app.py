@@ -171,6 +171,64 @@ def generate_recommendations(user_query, top_k=15):
 
     return result
 
+def generate_recommendation_item(user_query, top_k=15):
+    """
+    Generate a single RecommendationItem based on the user query.
+    """
+    print("Step 1: Searching for relevant places using the user query.")
+    search_results = search_places(user_query, top_k=top_k)
+
+    print("Step 2: Building places context for AI prompt.")
+    places_context = ""
+    for place in search_results:
+        places_context += f"ID: {place['id']}\n"
+        places_context += f"Name: {place['name']}\n"
+        places_context += f"Description: {place['description']}\n"
+        places_context += f"Address: {place['address']}\n"
+        places_context += f"Similarity Score: {place['similarity']}\n\n"
+
+    print("Step 3: Creating system prompt with places context.")
+    system_prompt = f"""
+    You are a helpful AI that creates a list of recommended places in Saint Louis.
+    based on the users query. you will be getting a list of items from my database that are closely related to the users query its your job to determine how many of the items are close and should be returned to the user. you can do all of them if all of them fit the criteira
+
+    {places_context}
+
+    For each place you include, you MUST provide:
+      1. The exact ID
+      2. The name
+      3. The description
+    """
+
+    print("Step 4: Calling OpenAI with RecommendationItem format.")
+    completion = client.beta.chat.completions.parse(
+        model="gpt-4o-2024-08-06",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_query}
+        ],
+        response_format=RecommendationItem,
+    )
+
+    result = completion.choices[0].message.parsed
+    print("✅ RecommendationItem generated successfully.")
+    return result
+
+
+@app.route('/recommendation-item', methods=['POST'])
+def recommendation_item():
+    data = request.get_json()
+    user_query = data.get("user_query", "")
+    print("Received user query for /recommendation-item:", user_query)
+
+    try:
+        recommendation = generate_recommendation_item(user_query)
+        return jsonify(recommendation.model_dump())
+    except Exception as e:
+        print("Error generating recommendation item:", str(e))
+        return jsonify({"error": "Failed to generate recommendation item", "details": str(e)}), 500
+
+
 
 @app.route('/recommend', methods=['POST'])
 def recommend():
