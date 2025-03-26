@@ -255,7 +255,7 @@ def recommend():
         for rec in recommendations.recommendations:
             step = {
                 "step_name": rec.title,
-                "places": [{"id": place["id"], "name": place["name"]} for place in rec.places]
+                "places": [{"id": place.id, "name": place.name} for place in rec.places]
             }
             output["steps"].append(step)
     
